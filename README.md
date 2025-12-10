@@ -1,0 +1,229 @@
+# Smart Mirror - Emotion, Fatigue & rPPG Detection
+
+A real-time multimodal system that detects emotion, fatigue, and heart rate (rPPG) from video feeds using deep learning and computer vision. Built with Streamlit for an interactive interface.
+
+## Project Overview
+
+This project integrates three independent AI models for real-time analysis of facial expressions, drowsiness detection, and heart rate estimation. The system is designed for driver monitoring and emotional state assessment applications.
+
+## Project Structure
+
+```
+Smart Mirror/
+├── app.py                              # Main Streamlit application integrating all models
+├── Emotion/
+│   ├── Emotion_Novel.ipynb             # Emotion model training on AffectNet YOLO dataset
+│   ├── Finetuned_Novel_Emotion.ipynb   # Fine-tuning and optimization notebook
+│   ├── best_emotion_model_b3_novel.pth # Trained emotion model weights
+│   └── emotion_model_novel_finetuned.pth # Fine-tuned model weights
+├── Fatigue/
+│   ├── fatigue_detection_module.ipynb  # Fatigue detection training notebook
+│   ├── fatigue_module.py                # Facial landmark extraction and feature computation
+│   └── fatigue_mlp.joblib               # Trained MLP classifier for drowsiness
+└── Stress/
+    ├── rppg_bpm.ipynb                   # rPPG model training on UBFC-2 dataset
+    └── best_model.pth                   # Trained heart rate estimation model
+```
+
+## Technical Stack
+
+- **Framework**: Streamlit (web interface)
+- **Deep Learning**: PyTorch, timm
+- **Computer Vision**: OpenCV, MediaPipe (facial landmarks)
+- **Data Processing**: NumPy
+- **ML Models**: Scikit-learn (MLP classifier)
+
+## Implemented Models
+
+### 1. Emotion Detection Model
+
+**Architecture**: NovelEmotionModel with EfficientNet-B3 Backbone
+- **Backbone**: EfficientNet-B3 (pretrained, feature dimension: 1536)
+- **Key Components**:
+  - **MicroExpEnhancer**: Micro-expression enhancement module to amplify subtle facial changes (x_out = x + factor × Conv(Conv(x)))
+  - **DynamicEmotionRouting**: Two-expert gated network biased toward high-arousal and low-arousal emotions
+  - **Multi-task Heads**:
+    - Emotion classifier (8 classes)
+    - Valence regressor
+    - Arousal regressor
+
+**Dataset**: AffectNet YOLO Format
+- Training split: Training/validation split from AffectNet YOLO dataset
+- 8 emotion classes: Neutral, Happy, Sad, Angry, Surprise, Disgust, Fear, Tired
+- Image size: 224×224
+- Data augmentation: Horizontal flip, brightness/contrast adjustment, color jitter, motion blur, Gaussian noise, random shadows
+
+**Training Details**:
+- Base Model: `best_emotion_model_b3_novel.pth`
+- Fine-tuned Model: `emotion_model_novel_finetuned.pth`
+- Optimizer: Adam (lr=1e-4, weight_decay=1e-5)
+- Loss function: CrossEntropyLoss (with class weights)
+- Learning rate scheduler: ReduceLROnPlateau (factor=0.5, patience=2)
+- Batch size: 16
+- Epochs: 15
+- Class weights: Inverse frequency weighting for imbalanced classes
+- Normalization: Mean (0.5, 0.5, 0.5), Std (0.5, 0.5, 0.5)
+- Mixed precision: Automatic mixed precision (AMP) enabled for GPU
+
+### 2. Fatigue Detection Model
+
+**Architecture**: ResNet-18 with Transfer Learning
+- **Backbone**: ResNet-18 (ImageNet pretrained, frozen)
+- **Classifier**: Fully connected layer (512 → 2 classes)
+- **Head Pose & Facial Features**: MediaPipe FaceMesh landmarks
+- **Feature Extraction**:
+  - Eye Aspect Ratio (EAR)
+  - Mouth Aspect Ratio (MAR)
+  - Yawn detection flag
+  - Head tilt angle (degrees)
+  - Pitch ratio
+
+**Dataset**: Driver Drowsiness Dataset (DDD)
+- Classes: Drowsy, Non-drowsy
+- Train/Val/Test split: 70/15/15
+- Image size: 224×224
+- Total images analyzed across drowsy and non-drowsy classes
+
+**Training Details**:
+- Pre-trained weights: ResNet-18 (ImageNet)
+- Fine-tuning: Only the final FC layer (all backbone layers frozen)
+- Optimizer: Adam (lr=1e-3)
+- Loss function: CrossEntropyLoss
+- Epochs: 10
+- Batch size: 64
+- Saved model: `fatigue_mlp.joblib` (MLP classifier on extracted features)
+
+### 3. Heart Rate (rPPG) Detection Model
+
+**Architecture**: UltraLightNet (Lightweight CNN)
+- **Feature Extraction**:
+  - Conv2d (3 → 16, kernel=5, stride=2)
+  - MaxPool (2)
+  - Conv2d (16 → 32, kernel=3)
+  - MaxPool (3)
+- **Temporal Processing**: Average pooling across time dimension
+- **Regression Head**: FC layers (32×3×3 → 64 → 32 → 1 BPM value)
+- **Model Size**: ~20K parameters
+- **Input Preprocessing**: Center crop (skip face detection for speed)
+
+**Dataset**: UBFC-2
+- Subject count: Multiple subjects with ground truth BPM
+- Ground truth: BPM values from ground_truth.txt files
+- BPM range: Validated to 40-200 BPM
+- Frame sampling: 180 frames per video (6 seconds at 30 FPS)
+- Image size: 36×36 (ultra-small for lightweight inference)
+
+**Training Details**:
+- Optimizer: Adam (lr=1e-3)
+- Loss function: Mean Squared Error (MSE)
+- Validation metric: Mean Absolute Error (MAE)
+- Epochs: 100
+- Batch size: 2
+- Frame depth: 180 frames
+- Video processing: No face detection, center crop only for speed
+
+**Stress Score Calculation** (derived from BPM):
+- Resting (60-80 BPM): Low stress (0-33%)
+- Elevated (80-100 BPM): Moderate stress (33-83%)
+- High (100+ BPM): High stress (83-100%)
+
+## Installation
+
+### Prerequisites
+- Python 3.8+
+- CUDA 11.0+ (optional, for GPU acceleration)
+
+### Setup
+
+1. Clone the repository:
+```bash
+cd "Smart Mirror"
+```
+
+2. Install dependencies:
+```bash
+pip install streamlit torch torchvision timm opencv-python mediapipe numpy scikit-learn joblib
+```
+
+3. (Optional) For training and experimentation:
+```bash
+pip install jupyter albumentations grad-cam kagglehub kaggle
+```
+
+## Usage
+
+### Run the Application
+
+```bash
+streamlit run app.py
+```
+
+The application will open in your browser at `http://localhost:8501`
+
+### Training Models
+
+Training notebooks are available for reproducing results:
+
+- **Emotion Model**: `Emotion/Emotion_Novel.ipynb` - Trains on AffectNet YOLO dataset
+- **Fatigue Model**: `Fatigue/fatigue_detection_module.ipynb` - Trains on Driver Drowsiness Dataset
+- **rPPG Model**: `Stress/rppg_bpm.ipynb` - Trains on UBFC-2 dataset
+
+## Model Performance
+
+### Emotion Model
+- Backbone: EfficientNet-B3 with micro-expression enhancement
+- Classes: 8 emotions
+- Training: Class-weighted loss for handling imbalance
+
+### Fatigue Model
+- Training accuracy: Evaluated on 15% held-out test set
+- Binary classification: Drowsy (0) vs Non-drowsy (1)
+- Feature-based approach for lightweight inference
+
+### rPPG Model
+- Lightweight architecture optimized for real-time performance
+- Regression-based BPM prediction
+- Stress score mapping for interpretability
+
+## Key Features
+
+- **Multi-modal Analysis**: Simultaneously detects emotion, drowsiness, and heart rate
+- **Real-time Processing**: Live video stream analysis with Streamlit
+- **GPU Support**: CUDA acceleration available for faster inference
+- **Transfer Learning**: Uses pretrained backbones (EfficientNet-B3, ResNet-18)
+- **Lightweight Models**: Optimized for edge deployment (rPPG model: ~20K parameters)
+- **Micro-expression Enhancement**: Specialized module to capture subtle facial expressions
+- **Dynamic Routing**: Expert-based architecture for emotion classification
+
+## System Requirements
+
+- **Webcam/Video Input**: Required for real-time analysis
+- **RAM**: Minimum 4GB (8GB+ recommended)
+- **GPU**: NVIDIA GPU with CUDA support (optional but recommended)
+- **Python**: 3.8 or higher
+
+## Datasets Used
+
+1. **AffectNet YOLO Format**: For emotion detection training
+   - 8 emotion classes with balanced class weights
+   - YOLO-formatted annotations
+
+2. **Driver Drowsiness Dataset (DDD)**: For fatigue detection
+   - Drowsy vs Non-drowsy classification
+   - Real-world driving scenarios
+
+3. **UBFC-2**: For heart rate (rPPG) estimation
+   - Multiple subjects with ground truth BPM
+   - Video-based heart rate measurement
+
+## License
+
+[Add your license information here]
+
+## Contact & Support
+
+For questions or issues, please reach out to the development team.
+
+---
+
+**Last Updated**: December 2025
