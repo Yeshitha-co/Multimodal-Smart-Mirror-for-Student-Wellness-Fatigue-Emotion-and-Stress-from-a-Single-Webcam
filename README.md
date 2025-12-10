@@ -67,11 +67,11 @@ Smart Mirror/
 
 ### 2. Fatigue Detection Model
 
-**Architecture**: ResNet-18 with Transfer Learning
-- **Backbone**: ResNet-18 (ImageNet pretrained, frozen)
-- **Classifier**: Fully connected layer (512 → 2 classes)
+**Architecture**: MLP Classifier on Handcrafted Features
+- **Feature Extractor**: ResNet-18 (ImageNet pretrained, frozen) for image-to-feature conversion
+- **Classifier**: Multi-Layer Perceptron (MLP) on extracted facial metrics
 - **Head Pose & Facial Features**: MediaPipe FaceMesh landmarks
-- **Feature Extraction**:
+- **Input Features** (to MLP):
   - Eye Aspect Ratio (EAR)
   - Mouth Aspect Ratio (MAR)
   - Yawn detection flag
@@ -85,13 +85,13 @@ Smart Mirror/
 - Total images analyzed across drowsy and non-drowsy classes
 
 **Training Details**:
-- Pre-trained weights: ResNet-18 (ImageNet)
-- Fine-tuning: Only the final FC layer (all backbone layers frozen)
-- Optimizer: Adam (lr=1e-3)
+- Feature extraction: ResNet-18 (ImageNet pretrained, frozen)
+- MLP Classifier: Scikit-learn MLPClassifier
+- Optimizer: Adam (for feature extraction backbone)
 - Loss function: CrossEntropyLoss
 - Epochs: 10
 - Batch size: 64
-- Saved model: `fatigue_mlp.joblib` (MLP classifier on extracted features)
+- Saved model: `fatigue_mlp.joblib` (MLP classifier on handcrafted facial features)
 
 ### 3. Heart Rate (rPPG) Detection Model
 
