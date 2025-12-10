@@ -67,31 +67,44 @@ Smart Mirror/
 
 ### 2. Fatigue Detection Model
 
-**Architecture**: MLP Classifier on Handcrafted Features
-- **Feature Extractor**: ResNet-18 (ImageNet pretrained, frozen) for image-to-feature conversion
-- **Classifier**: Multi-Layer Perceptron (MLP) on extracted facial metrics
-- **Head Pose & Facial Features**: MediaPipe FaceMesh landmarks
-- **Input Features** (to MLP):
-  - Eye Aspect Ratio (EAR)
-  - Mouth Aspect Ratio (MAR)
-  - Yawn detection flag
-  - Head tilt angle (degrees)
-  - Pitch ratio
+**Architecture**: MLP Classifier on Handcrafted Geometric Features  
+
+**Face & Landmarks**
+
+- MediaPipe Face Mesh for 2D facial landmarks
+
+**Input Features to MLP (5-D)**
+
+- Eye Aspect Ratio (EAR)
+- Mouth Aspect Ratio (MAR)
+- Yawn detection flag (binary)
+- Head tilt angle (degrees)
+- Pitch ratio (normalized head pitch)
 
 **Dataset**: Driver Drowsiness Dataset (DDD)
-- Classes: Drowsy, Non-drowsy
-- Train/Val/Test split: 70/15/15
-- Image size: 224×224
-- Total images analyzed across drowsy and non-drowsy classes
 
-**Training Details**:
-- Feature extraction: ResNet-18 (ImageNet pretrained, frozen)
-- MLP Classifier: Scikit-learn MLPClassifier
-- Optimizer: Adam (for feature extraction backbone)
-- Loss function: CrossEntropyLoss
-- Epochs: 10
+- Classes: **Drowsy**, **Non-drowsy**
+- Split: **70% train / 15% validation / 15% test**
+- Original image size: **224×224** (used only to run MediaPipe and compute features)
+- Final training is done on tabular **5-D feature vectors**, not raw pixels
+
+**MLP Classifier**
+
+- Input: 5-D feature vector
+- Hidden Layer 1: 32 units, ReLU
+- Hidden Layer 2: 16 units, ReLU
+- Output Layer: 2 logits (Drowsy vs Non-drowsy) + softmax
+- Saved model: `fatigue_mlp.joblib` (scikit-learn / joblib export of the trained MLP)
+
+**Training Details**
+
+- Loss function: Cross-entropy on (Drowsy, Non-drowsy) labels
+- Optimizer: Adam
 - Batch size: 64
-- Saved model: `fatigue_mlp.joblib` (MLP classifier on handcrafted facial features)
+- Epochs: ~10–20 with early stopping based on validation accuracy
+- Reported test accuracy: ≈**93%** on held-out DDD test split
+
+---
 
 ### 3. Heart Rate (rPPG) Detection Model
 
@@ -176,9 +189,10 @@ Training notebooks are available for reproducing results:
 - Training: Class-weighted loss for handling imbalance
 
 ### Fatigue Model
-- Training accuracy: Evaluated on 15% held-out test set
-- Binary classification: Drowsy (0) vs Non-drowsy (1)
-- Feature-based approach for lightweight inference
+
+- Binary classification: **Drowsy (0)** vs **Non-drowsy (1)**  
+- Reported performance: ≈**93%** accuracy on 15% held-out DDD test split  
+- 5-D feature-based approach for lightweight inference 
 
 ### rPPG Model
 - Lightweight architecture optimized for real-time performance
@@ -187,14 +201,16 @@ Training notebooks are available for reproducing results:
 
 ## Key Features
 
-- **Multi-modal Analysis**: Simultaneously detects emotion, drowsiness, and heart rate
-- **Real-time Processing**: Live video stream analysis with Streamlit
-- **GPU Support**: CUDA acceleration available for faster inference
-- **Transfer Learning**: Uses pretrained backbones (EfficientNet-B3, ResNet-18)
-- **Lightweight Models**: Optimized for edge deployment (rPPG model: ~20K parameters)
-- **Micro-expression Enhancement**: Specialized module to capture subtle facial expressions
-- **Dynamic Routing**: Expert-based architecture for emotion classification
-
+- **Multi-modal Analysis**: Simultaneously detects emotion, drowsiness, and heart rate from the same video stream  
+- **Real-time Processing**: Live video stream analysis with Streamlit  
+- **Local-Only Execution**: All inference runs locally; no cloud backend required  
+- **GPU Support**: CUDA acceleration available for faster emotion model inference  
+- **Transfer Learning**: Uses pretrained backbones (EfficientNet-B3, etc.)  
+- **Lightweight Models**: Optimized for edge deployment (rPPG model: ~20K parameters)  
+- **Micro-expression Enhancement**: Specialized module to capture subtle facial expressions  
+- **Dynamic Routing**: Expert-based architecture for emotion classification  
+- **RL-Based Interventions (Prototype)**: Simple RL agent to suggest breaks or hydration when fatigue/stress is high
+  
 ## System Requirements
 
 - **Webcam/Video Input**: Required for real-time analysis
@@ -216,13 +232,6 @@ Training notebooks are available for reproducing results:
    - Multiple subjects with ground truth BPM
    - Video-based heart rate measurement
 
-## License
-
-[Add your license information here]
-
-## Contact & Support
-
-For questions or issues, please reach out to the development team.
 
 ---
 
